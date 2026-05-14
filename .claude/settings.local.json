@@ -1,0 +1,12 @@
+{
+  "permissions": {
+    "allow": [
+      "Bash(grep -n \"worldmap\\\\|geoHistorical\\\\|drillChart\\\\|compareChart\\\\|crypto-grid\\\\|d3\\\\.csv\\\\|FileNotFoundError\\\\|fetch\\\\|\\\\.csv\" /mnt/c/Users/meisi/code/formula-one-sponsors/web/index.html | head -60)",
+      "Read(//mnt/c/Users/meisi/code/formula-one-sponsors/web/**)",
+      "Bash(python -c ' *)",
+      "Bash(python -c \"import marimo; print\\(marimo.__version__\\)\")",
+      "Bash(python -c \"import pandas; print\\('pandas:', pandas.__version__\\)\")",
+      "Bash(python -c \"import plotly; print\\('plotly:', plotly.__version__\\)\")"
+    ]
+  }
+}
