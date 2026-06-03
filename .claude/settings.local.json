@@ -6,7 +6,9 @@
       "Bash(python -c ' *)",
       "Bash(python -c \"import marimo; print\\(marimo.__version__\\)\")",
       "Bash(python -c \"import pandas; print\\('pandas:', pandas.__version__\\)\")",
-      "Bash(python -c \"import plotly; print\\('plotly:', plotly.__version__\\)\")"
+      "Bash(python -c \"import plotly; print\\('plotly:', plotly.__version__\\)\")",
+      "Bash(open /Users/meisi.li/Desktop/formula-one-sponsors/web/outline_draft.html)",
+      "Bash(python3 -c ' *)"
     ]
   }
 }
