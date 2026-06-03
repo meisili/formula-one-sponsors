@@ -1,0 +1,2506 @@
+<!doctype html>
+<html lang="en">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>
+      The Money on the Grid — A 45-year data investigation into who pays for
+      Formula 1
+    </title>
+    <link rel="preconnect" href="https://fonts.googleapis.com" />
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin />
+    <link
+      href="https://fonts.googleapis.com/css2?family=Source+Serif+4:ital,opsz,wght@0,8..60,300..900;1,8..60,300..900&family=Inter:wght@400;500;600&family=IBM+Plex+Mono:wght@400;500&display=swap"
+      rel="stylesheet"
+    />
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/d3/7.8.5/d3.min.js"></script>
+    <script src="https://cdnjs.cloudflare.com/ajax/libs/topojson/3.0.2/topojson.min.js"></script>
+    <script src="js/data.js"></script>
+    <link rel="stylesheet" href="css/style.css" />
+    <style>
+      .outline-notes {
+        margin: 16px 0 24px;
+        padding-left: 20px;
+        line-height: 1.7;
+        color: var(--ink, #1a1a1a);
+        font-family: var(--sans, Inter, sans-serif);
+        font-size: 15px;
+      }
+      .outline-notes > li {
+        margin-bottom: 10px;
+      }
+      .outline-notes ul {
+        margin-top: 6px;
+        padding-left: 18px;
+      }
+      .outline-notes ul li {
+        margin-bottom: 4px;
+      }
+      .outline-label {
+        display: inline-block;
+        background: #f0f0ee;
+        border-left: 3px solid #aaa;
+        padding: 10px 16px;
+        margin: 16px 0;
+        font-family: var(--sans, Inter, sans-serif);
+        font-size: 13px;
+        color: #555;
+        font-style: italic;
+      }
+      /* ── Car guess game ── */
+      .car-guess-wrap {
+        margin-top: 12px;
+        display: flex;
+        flex-direction: column;
+        gap: 6px;
+      }
+      .guess-label {
+        font-family: var(--sans, Inter, sans-serif);
+        font-size: 12px;
+        color: var(--ink-faint, #8a8780);
+        letter-spacing: 0.01em;
+      }
+      .guess-input {
+        font-family: var(--sans, Inter, sans-serif);
+        font-size: 16px;
+        padding: 8px 12px;
+        border: 1.5px solid #d8d3c7;
+        border-radius: 4px;
+        width: 120px;
+        background: #fff;
+        color: var(--ink, #1a1a1a);
+      }
+      .guess-input:focus {
+        outline: none;
+        border-color: var(--ink, #1a1a1a);
+      }
+      .car-guess-result {
+        display: none;
+        flex-direction: column;
+        gap: 4px;
+        margin-top: 12px;
+        font-family: var(--sans, Inter, sans-serif);
+        font-size: 13px;
+      }
+      .guess-result-yours {
+        color: var(--ink-faint, #8a8780);
+      }
+      .guess-result-answer {
+        color: var(--ink, #1a1a1a);
+        font-weight: 500;
+      }
+      /* ── Photo credits + CTA ── */
+      .photo-credit {
+        font-family: var(--mono, "IBM Plex Mono", monospace);
+        font-size: 10px;
+        color: var(--ink-faint, #8a8780);
+        margin-top: 6px;
+        margin-bottom: 4px;
+        text-align: right;
+        letter-spacing: 0.02em;
+        display: block;
+        width: 100%;
+      }
+      .car-cta {
+        text-align: center;
+        padding: 24px 0 16px;
+      }
+      .car-cta-title {
+        font-family: var(--serif, "Source Serif 4", serif);
+        font-size: 24px;
+        font-weight: 600;
+        color: var(--ink, #1a1a1a);
+        margin-bottom: 8px;
+      }
+      .car-cta-desc {
+        font-family: var(--sans, Inter, sans-serif);
+        font-size: 14px;
+        color: var(--ink-faint, #8a8780);
+        margin: 0;
+      }
+      /* ── Inline source links ── */
+      article a {
+        color: inherit;
+        text-decoration: underline;
+        text-underline-offset: 3px;
+        text-decoration-thickness: 1px;
+      }
+      article a:hover {
+        opacity: 0.7;
+      }
+    </style>
+  </head>
+  <body>
+    <!-- ──────────── CAR GAME OVERLAY ──────────── -->
+    <div class="car-game-overlay" id="carGameOverlay">
+      <div class="car-game-inner">
+        <!-- Top bar: always visible -->
+        <div class="car-game-topbar">
+          <button class="car-game-back-btn" id="carGameBack">
+            ↑ Back to intro
+          </button>
+          <div class="car-game-kicker">§ 01 — An interactive question</div>
+          <button class="car-game-skip-btn" id="carGameSkip">
+            Skip — show me the answer
+          </button>
+        </div>
+
+        <!-- Headline + instruction — hidden once results are shown -->
+        <div class="car-game-headline-wrap" id="carGameHeadlineWrap">
+          <h2 class="car-game-headline">
+            A Ferrari in 1996 carried a handful of logos.<br />The same team in
+            2026 carries thirty.
+          </h2>
+          <p class="car-game-instruction">
+            How many unique sponsor logos can you spot on each car? Enter your
+            count for each, then submit.
+          </p>
+        </div>
+
+        <!-- Summary — shown only after submit / skip -->
+        <div class="car-game-summary" id="carGameSummary">
+          <div class="car-results-score"><em id="resultsScore">—</em></div>
+          <div class="car-results-sub" id="resultsSub"></div>
+          <div class="car-results-grid">
+            <div class="car-results-card">
+              <div class="car-results-year">1996 season</div>
+              <div class="car-results-number">~11</div>
+              <div class="car-results-label">
+                visible sponsor logos<br />on the Ferrari F310
+              </div>
+            </div>
+            <div class="car-results-card">
+              <div class="car-results-year">2026 season</div>
+              <div class="car-results-number">~19</div>
+              <div class="car-results-label">
+                visible sponsor logos<br />on the Ferrari SF-26
+              </div>
+            </div>
+          </div>
+        </div>
+
+        <!-- Cars with real photos -->
+        <div class="car-game-cars">
+          <!-- 1996 car -->
+          <div class="car-game-side">
+            <div class="car-game-year">1996 season</div>
+            <div class="car-game-team">Ferrari F310</div>
+            <div class="car-game-img-wrap" id="car1996Wrap">
+              <img
+                id="img1996"
+                src="assets/images/Ferrari-F310-1996.jpg"
+                alt="Ferrari F310, 1996 season"
+                style="
+                  width: 100%;
+                  display: block;
+                  border-radius: 4px;
+                  object-fit: contain;
+                "
+              />
+            </div>
+            <div class="photo-credit">Photo: Wouter Melissen</div>
+            <div class="car-guess-wrap" id="guessWrap1996">
+              <label class="guess-label" for="guess1996"
+                >How many unique sponsors can you spot?</label
+              >
+              <input
+                class="guess-input"
+                type="number"
+                id="guess1996"
+                min="0"
+                max="60"
+                placeholder="Your count"
+              />
+            </div>
+            <div class="car-guess-result" id="guessResult1996">
+              <span class="guess-result-yours"
+                >Your guess: <strong id="yourGuess1996">—</strong></span
+              >
+              <span class="guess-result-answer"
+                >Answer: ~<strong>11</strong></span
+              >
+            </div>
+          </div>
+
+          <!-- 2026 car -->
+          <div class="car-game-side">
+            <div class="car-game-year">2026 season</div>
+            <div class="car-game-team">Ferrari SF-26</div>
+            <div class="car-game-img-wrap" id="car2026Wrap">
+              <img
+                id="img2026"
+                src="assets/images/ferrari-2026.avif"
+                alt="Ferrari SF-26, 2026 season"
+                style="
+                  width: 100%;
+                  display: block;
+                  border-radius: 4px;
+                  object-fit: contain;
+                "
+              />
+            </div>
+            <div class="photo-credit">Photo: formula1.com</div>
+            <div class="car-guess-wrap" id="guessWrap2026">
+              <label class="guess-label" for="guess2026"
+                >How many unique sponsors can you spot?</label
+              >
+              <input
+                class="guess-input"
+                type="number"
+                id="guess2026"
+                min="0"
+                max="100"
+                placeholder="Your count"
+              />
+            </div>
+            <div class="car-guess-result" id="guessResult2026">
+              <span class="guess-result-yours"
+                >Your guess: <strong id="yourGuess2026">—</strong></span
+              >
+              <span class="guess-result-answer"
+                >Answer: ~<strong>19</strong></span
+              >
+            </div>
+          </div>
+        </div>
+        <!-- /car-game-cars -->
+
+        <!-- Submit action -->
+        <div class="car-game-actions" id="carGameActions">
+          <button class="car-game-done-btn" id="carGameSubmit">
+            Submit my guesses
+          </button>
+        </div>
+
+        <!-- Continue action — hidden until results -->
+        <div
+          class="car-game-actions"
+          id="carGameContinueWrap"
+          style="display: none"
+        >
+          <button class="car-game-continue-btn" id="carGameContinue">
+            Continue reading →
+          </button>
+        </div>
+      </div>
+      <!-- /car-game-inner -->
+    </div>
+    <!-- /carGameOverlay -->
+
+    <header class="masthead">
+      <div class="masthead-inner">
+        <span class="masthead-logo">Formula 1 Sponsors </span>
+        <span>May 2026</span>
+      </div>
+    </header>
+
+    <!-- ──────────── HERO ──────────── -->
+    <div class="hero">
+      <div class="kicker">A data investigation</div>
+      <h1 class="headline">The Money on the Grid</h1>
+      <p class="deck">
+        A 45-year data investigation into who pays for Formula 1
+      </p>
+      <div class="byline-block">
+        <span><strong>By Meisi Li</strong></span>
+        <span>~8 min read</span>
+      </div>
+    </div>
+
+    <!-- ──────────── SECTION 1 ──────────── -->
+    <section>
+      <article>
+        <h2
+          class="section-title"
+          style="text-align: center; margin: 0 auto 32px; max-width: 720px"
+        >
+          Every patch of carbon fiber has a price
+        </h2>
+
+        <p>
+          On November 13, 2022, the Mercedes-AMG Petronas Formula 1 car rolled
+          onto the grid at the São Paulo Grand Prix without the FTX logo that
+          had been on it the week before. According to Law360 Bankruptcy
+          Authority, two days earlier, the cryptocurrency exchange FTX had
+          <a
+            href="https://www.reuters.com/business/ftx-start-us-bankruptcy-proceedings-ceo-exit-2022-11-11/"
+            target="_blank"
+            rel="noopener noreferrer"
+            >filed for Chapter 11 bankruptcy protection</a
+          >
+          in Delaware. Removing the FTX branding did not cost Mercedes anything.
+          The deal it represented, signed fourteen months earlier with a company
+          then valued at $32 billion, was the kind of sponsorship Formula 1 had
+          spent six years rebuilding around. A year later, FTX customers
+          <a
+            href="https://www.law360.com/articles/1770249/ftx-investors-sue-mlb-f1-team-over-crypto-promotions"
+            target="_blank"
+            rel="noopener noreferrer"
+            >named Mercedes in a class-action lawsuit</a
+          >
+          alleging the team had helped promote a fraudulent exchange.
+        </p>
+        <p>This story is about who pays for that car.</p>
+
+        <p>
+          Every patch of carbon fiber on a Formula 1 car has a price. A top
+          team's annual operating costs can exceed $500 million — well above the
+          FIA's $140 million budget cap, which excludes driver salaries,
+          marketing, and engine programs. According to BlackBook Motorsport,
+          sponsorship accounted for about 21.7 percent of Formula One's primary
+          revenue in 2025, meaning most of the money comes from other sources,
+          such as broadcasting and prize money. The names on the cars still
+          serve as a record of which industries considered international
+          motorsport visibility a worthwhile investment, and when.
+        </p>
+        <p>
+          For most of the sport's modern history, that ledger was dominated by a
+          single category: tobacco. From the early 1980s through 2006, cigarette
+          brands accounted for nearly a third of every title sponsorship in
+          Formula 1. When the European Union banned tobacco advertising in
+          motorsport in 2005, that revenue stream declined within two seasons —
+          and what replaced it tells you something about how global money has
+          moved over the last twenty years.
+        </p>
+        <p>
+          This project tracks 45 years of F1 sponsorship across two datasets:
+          every title sponsor since 1981, and every visible sponsor on every car
+          for the last six seasons.
+        </p>
+      </article>
+
+      <div class="article-wide" id="carComparisonWide">
+        <div class="car-cta">
+          <div class="car-cta-title">Spot the sponsors.</div>
+          <p class="car-cta-desc">
+            Two Ferraris, three decades apart. Logos that repeat in multiple
+            places on the same car count as one.
+          </p>
+        </div>
+        <div class="car-comparison">
+          <div class="car-card">
+            <div class="car-year">1996 SEASON</div>
+            <div class="car-team">Ferrari F310</div>
+            <div class="car-svg-wrap">
+              <img
+                src="assets/images/Ferrari-F310-1996.jpg"
+                alt="Ferrari F310, 1996 season"
+                style="width: 100%; display: block; border-radius: 4px"
+              />
+            </div>
+            <div class="photo-credit">Photo: Wouter Melissen</div>
+          </div>
+          <div class="car-card">
+            <div class="car-year">2026 SEASON</div>
+            <div class="car-team">Ferrari SF-26</div>
+            <div class="car-svg-wrap">
+              <img
+                src="assets/images/ferrari-2026.avif"
+                alt="Ferrari SF-26, 2026 season"
+                style="width: 100%; display: block; border-radius: 4px"
+              />
+            </div>
+            <div class="photo-credit">Photo: formula1.com</div>
+          </div>
+        </div>
+        <div class="viz-caption">
+          In 1996, Ferrari's livery effectively was its full sponsor roster. By
+          2026, Ferrari has 40 partners total, and only some appear on the car
+          itself.
+        </div>
+      </div>
+      <!-- /carComparisonWide -->
+
+      <article>
+        <div class="stat-grid">
+          <div class="stat">
+            <div class="stat-num">$140M</div>
+            <div class="stat-label">
+              FIA cost cap per team in 2026 (actual operating costs, including
+              exclusions, can exceed $500M)
+            </div>
+          </div>
+          <div class="stat">
+            <div class="stat-num" id="stat-total-sponsors">—</div>
+            <div class="stat-label">
+              Distinct sponsor brands across all 10 teams, 2020–2026
+            </div>
+          </div>
+          <div class="stat">
+            <div class="stat-num" id="stat-title-count">—</div>
+            <div class="stat-label">
+              Distinct title sponsors across F1 history, 1981–2026
+            </div>
+          </div>
+        </div>
+
+        <div class="ftx-marker">
+          <strong>What is a title sponsor?</strong>
+          Throughout this story, title sponsors are the company in the team's
+          official entry — "Stake F1 Team," "Oracle Red Bull Racing" — not every
+          logo on the car. We use that definition for historical trend analysis
+          going back to 1981, and the full sponsor roster for the recent grid.
+        </div>
+        <div class="ftx-marker">
+          <strong>Why does the data start in 1981?</strong>
+          The first Concorde Agreement was signed in January 1981 at the Hôtel
+          de la Concorde in Paris, ending a multi-year power struggle between
+          the teams' association FOCA and the FIA's sporting arm FISA. The
+          agreement formalized revenue sharing, governance, and team
+          participation. It marked the start of F1's modern commercial era.
+          Title sponsorship existed before — Gold Leaf at Lotus in 1968,
+          Marlboro at McLaren from 1974 — but the framework around it wasn't
+          stable until 1981.
+        </div>
+      </article>
+    </section>
+
+    <!-- ──────────── SECTION 2 ──────────── -->
+    <section>
+      <div class="article-wide">
+        <h2
+          class="section-title"
+          style="text-align: center; margin: 0 auto 32px; max-width: 720px"
+        >
+          Three acts in 45 years
+        </h2>
+      </div>
+
+      <article>
+        <p>
+          The names that have appeared on F1 cars over 45 years fall into a
+          surprisingly small number of industries — only ten of the twenty NAICS
+          sectors appear at all. The data tells a story in three acts.
+        </p>
+      </article>
+
+      <!-- Chart A2: Streamgraph – 4-digit NAICS detail -->
+      <div class="article-wide">
+        <div class="viz-block" id="streamgraph-4d-block">
+          <div class="viz-block-header">
+            <div>
+              <div class="viz-title">
+                F1 title sponsor industries, 1981–2026
+              </div>
+              <div class="viz-subtitle">
+                Key categories by 4-digit NAICS · tobacco and its successors
+                made visible
+              </div>
+            </div>
+          </div>
+          <div class="stream-legend" id="stream-4d-legend"></div>
+          <div class="stream-canvas-wrap" id="streamgraph-4d-container">
+            <div
+              class="stream-tooltip"
+              id="stream-4d-tooltip"
+              style="display: none"
+            ></div>
+          </div>
+        </div>
+      </div>
+
+      <article>
+        <p style="margin-top: 32px">
+          <strong>The tobacco era (1981–2006).</strong> Cigarette brands were
+          the single largest category of F1 title sponsor for 25 consecutive
+          years. Thirteen tobacco brands held title slots between them —
+          Marlboro, Camel, Rothmans, John Player Special, Mild Seven, Gauloises,
+          Gitanes, Lucky Strike, Benson &amp; Hedges, West, Winfield, Barclay,
+          and Skoal Bandit — sometimes multiple at the same time. Formula 1 has
+          been at the center of debates over tobacco advertising, with a
+          substantial number of teams being sponsored by tobacco brands in the
+          late 1990s. This close association meant that both the sport and
+          tobacco companies relied heavily on each other during that period.
+        </p>
+        <p>
+          The dependency went both ways. When the UK Labour government announced
+          a planned ban on tobacco sponsorship after winning the 1997 election,
+          Bernie Ecclestone, F1's commercial chief, donated £1 million to the
+          party. Labour subsequently proposed that Formula 1 be granted a
+          special exemption from the EU's tobacco advertising directive,
+          <a
+            href="https://www.npr.org/1997/11/12/1037747/tobacco-tories"
+            target="_blank"
+            rel="noopener noreferrer"
+            >a reversal that became known as "Berniegate"</a
+          >. The donation was eventually returned amid public outcry.
+          <a
+            href="https://www.grandprix.com/features/feature-the-history-of-anti-tobacco-legislation.html"
+            target="_blank"
+            rel="noopener noreferrer"
+            >The EU directive that ultimately took effect in July 2005</a
+          >
+          made no exceptions for motor racing.
+        </p>
+        <p>
+          Title sponsorship at the time was effectively a tobacco market, one of
+          the few channels where cigarette logos could still reach a global TV
+          audience.
+        </p>
+        <p>
+          <strong>The vacuum (2007–2016).</strong> The collapse in tobacco title
+          sponsorship was sharp: from three in 2006 to one in 2007. Ferrari was
+          the holdout, continuing to display Marlboro-affiliated "barcode"
+          graphics through 2010 wherever tobacco advertising remained legal.
+          <a
+            href="https://pmc.ncbi.nlm.nih.gov/articles/PMC3595501"
+            target="_blank"
+            rel="noopener noreferrer"
+            >Public health researchers later argued the barcodes functioned as
+            alibi advertising</a
+          >. Ferrari maintained they were part of the team livery.
+        </p>
+        <p>
+          Telecoms tried to fill the space — AT&amp;T at Williams, Vodafone at
+          McLaren, Orange at Arrows — and most exited within a few years.
+          Industry diversity actually fell during this decade. The data shows
+          seven NAICS sectors represented in the 1990s versus only five in the
+          2010s. Title sponsorship, as a structural feature of the sport, began
+          to decline at the same time, even as overall F1 sponsorship revenue
+          grew. Teams were increasing their sponsorship revenue by securing
+          multiple commercial partnerships rather than relying on a single major
+          contract, contributing to Formula 1's projected sponsorship investment
+          surpassing $3 billion in 2026.
+        </p>
+        <p>
+          <strong>The reinvention (2017–2026).</strong>
+          <a
+            href="https://www.libertymedia.com/news/detail/305/liberty-media-corporation-completes-acquisition-of-formula-1"
+            target="_blank"
+            rel="noopener noreferrer"
+            >Liberty Media completed its acquisition of F1 on January 23, 2017,
+            for $4.4 billion</a
+          >. The American media company brought a different theory of the sport:
+          less aristocratic European tradition, more global entertainment
+          property. Two years later, <em>Drive to Survive</em> premiered on
+          Netflix.
+          <a
+            href="https://www.pressreader.com/france/euronews-english-edition/20220518/282097755309687"
+            target="_blank"
+            rel="noopener noreferrer"
+            >By 2022, F1 was averaging over 1 million US viewers per race for
+            the first time</a
+          >, with 34% of its global audience under 24.
+        </p>
+        <p>
+          The post-Liberty era is the first sustained expansion of F1
+          sponsorship since the tobacco era ended. Three categories now share
+          what tobacco used to hold: software, state-owned oil and gas, and
+          crypto and fintech. Where tobacco was one industry with one motive,
+          the current grid is many industries with overlapping ones. Aramco
+          wants to be seen as a technology company, not just an oil company.
+          Saudi Arabia's Public Investment Fund wants a foothold in Western
+          luxury sport. Oracle wants its name next to Ferrari and Red Bull
+          because enterprise software is now a brand business. Stake.com, banned
+          from advertising in the UK, wants the legitimacy that comes with
+          appearing in the same camera frame as Lewis Hamilton.
+        </p>
+
+        <div class="stat-grid">
+          <div class="stat">
+            <div class="stat-num" id="stat-80s-count">—</div>
+            <div class="stat-label">
+              Title sponsorships in the 1980s — the highest decade on record
+            </div>
+          </div>
+          <div class="stat">
+            <div class="stat-num" id="stat-10s-count">—</div>
+            <div class="stat-label">
+              Title sponsorships in the 2010s — down 35% from the 1980s peak
+            </div>
+          </div>
+          <div class="stat">
+            <div class="stat-num"><em id="stat-decade-change">—</em></div>
+            <div class="stat-label">
+              Decline over thirty years. Same or higher total revenue;
+              distributed across far more logos per team
+            </div>
+          </div>
+        </div>
+
+        <p>
+          The decline is structural, not industry turnover. Total F1 revenue
+          grew across this period. What changed is how teams package their
+          commercial inventory. One large title contract became thirty or more
+          smaller placements. Same or more money, distributed across more logos.
+        </p>
+      </article>
+    </section>
+
+    <!-- ──────────── SECTION 3 — GEO ──────────── -->
+    <section>
+      <div class="article-wide">
+        <h2
+          class="section-title"
+          style="text-align: center; margin: 0 auto 32px; max-width: 720px"
+        >
+          From European monopoly to multi-polar grid
+        </h2>
+      </div>
+
+      <article>
+        <p>
+          The industries that have funded Formula 1 have shifted, but the
+          geography has shifted further. For most of the sport's commercial
+          history, F1 was structurally European — Italian tobacco brands, French
+          oil companies, German auto suppliers, British banks. That pattern
+          began to fracture in the early 2000s as Asian manufacturers entered,
+          and broke open again in the 2020s when state-owned Middle Eastern
+          energy companies arrived. Today's grid is multi-polar in a way it has
+          never been before.
+        </p>
+      </article>
+
+      <div class="article-wide">
+        <div class="geo-chart-wrap">
+          <div class="drilldown-header">
+            <div>
+              <div class="viz-title">
+                F1 title sponsors by headquarters region, 1981–2026
+              </div>
+              <div class="viz-subtitle">
+                Share of annual title sponsorships by headquarters region
+              </div>
+            </div>
+          </div>
+          <div class="legend-row">
+            <span class="legend-item"
+              ><span class="legend-swatch" style="background: #534ab7"></span
+              >Western Europe</span
+            >
+            <span class="legend-item"
+              ><span class="legend-swatch" style="background: #1d9e75"></span
+              >Asia Pacific</span
+            >
+            <span class="legend-item"
+              ><span class="legend-swatch" style="background: #185fa5"></span
+              >North America</span
+            >
+            <span class="legend-item"
+              ><span class="legend-swatch" style="background: #ba7517"></span
+              >Middle East</span
+            >
+            <span class="legend-item"
+              ><span class="legend-swatch" style="background: #888880"></span
+              >Other</span
+            >
+          </div>
+          <div class="geo-chart-canvas">
+            <canvas
+              id="geoHistoricalChart"
+              role="img"
+              aria-label="Stacked area chart of F1 title sponsor HQ regions from 1981 to 2026"
+            ></canvas>
+          </div>
+        </div>
+      </div>
+
+      <article>
+        <p>
+          <strong>Western European dominance (1981–late 1990s).</strong> Italian
+          tobacco brands like Marlboro and Mild Seven; French oil companies like
+          Elf, Total, and Gitanes; German auto suppliers; British banks like
+          Barclays and HSBC. Through the mid-1990s, Western Europe accounted for
+          the overwhelming majority of title sponsorships on the grid.
+        </p>
+        <p>
+          <strong>Wave one — Asia Pacific (post-2000).</strong> Petronas joined
+          Sauber as title sponsor in 2002. Panasonic became Toyota's from 2002
+          to 2009. Other Japanese names had carried title slots earlier — Canon
+          at Williams from 1985 to 1992, Subaru briefly at Coloni in 1990 — but
+          the 2000s established a sustained Asian presence.
+        </p>
+        <p>
+          <strong>Wave two — the Middle East (post-2018).</strong> Aramco joined
+          Aston Martin as a commercial partner in 2022 and
+          <a
+            href="https://www.flashscore.com/news/auto-racing-formula-1-aramco-becomes-aston-martin-s-sole-f1-title-sponsor-for-2024-season/6NiBkUqn"
+            target="_blank"
+            rel="noopener noreferrer"
+            >became sole title partner in 2024</a
+          >, in a deal that coincided with Saudi Arabia's Public Investment Fund
+          increasing its stake in Aston Martin to 20.5%. Aramco called it a
+          chance to deliver "best-in-class technology" through "advanced fuels
+          and lubricants" — language designed to position a sovereign oil
+          company as a technology partner.
+        </p>
+        <p>
+          Orlen, a Polish state energy company, joined Alfa Romeo in 2020.
+          Across the same period, Saudi Arabia, Bahrain, Abu Dhabi, and Qatar
+          all hosted races, and the sponsorship followed the calendar. As the
+          sport added Gulf races, Gulf money flowed back into the teams.
+        </p>
+      </article>
+    </section>
+
+    <!-- ──────────── SECTION 4 — CURRENT LANDSCAPE ──────────── -->
+    <section>
+      <div class="article-wide">
+        <h2
+          class="section-title"
+          style="text-align: center; margin: 0 auto 32px; max-width: 720px"
+        >
+          The most crowded grid in F1 history
+        </h2>
+      </div>
+
+      <article>
+        <div class="stat-grid">
+          <div class="stat">
+            <div class="stat-num" id="stat-2026-count">—</div>
+            <div class="stat-label">
+              Total sponsorship placements across all 11 teams, 2026 season
+            </div>
+          </div>
+        </div>
+        <p>
+          Across all eleven teams, including Cadillac's debut season, there are
+          331 distinct sponsorship placements on cars and drivers' suits. That
+          number has grown roughly 21% since 2020. McLaren alone carries 54
+          logos; Cadillac carries only nine.
+        </p>
+        <p>
+          What that saturation looks like, geographically, tells a story that
+          Liberty Media has been telling shareholders for nine years. In 2020,
+          24% of full-grid sponsors were headquartered in the United States. By
+          2026, that figure is 41%, a 17-point swing in six years. Western
+          Europe has dropped to 39%. The Middle East accounts for only 3% of
+          sponsor count, but those few sponsors are concentrated almost entirely
+          at the title or principal tier, where the money is.
+        </p>
+      </article>
+
+      <div class="article-wide">
+        <div id="worldmap-wrap">
+          <div class="viz-block-header" style="margin-bottom: 12px">
+            <div>
+              <div class="viz-title">
+                Where grid sponsors are headquartered —
+                <span id="map-year-label">2020</span>
+              </div>
+              <div class="viz-subtitle">
+                Sponsorship count by HQ country · 2020–2026 · hover a country
+                for the number
+              </div>
+            </div>
+          </div>
+          <div class="map-controls">
+            <button class="map-play-btn" id="map-play-btn" title="Play / pause">
+              ⏸
+            </button>
+            <div class="map-year-pills" id="map-year-pills"></div>
+          </div>
+          <div id="worldmap"></div>
+          <div class="map-legend" id="map-legend"></div>
+          <div class="map-linechart-wrap">
+            <div class="map-linechart-label">
+              Sponsor counts on the grid · 2020 – 2026
+            </div>
+            <div id="map-linechart"></div>
+          </div>
+          <div class="viz-caption" style="margin-top: 12px">
+            Colors update each season. Click any year pill or ⏸/▶ to control
+            playback. The line chart shows the total sponsor count across all
+            eleven teams.
+          </div>
+        </div>
+      </div>
+
+      <article>
+        <p style="margin-top: 32px">
+          <strong>US growth.</strong> The most consistent geographic shift
+          across 2020–2026 is the rise of US-headquartered sponsors — from 24%
+          to 41%, a 17-point swing in six years. That tracks directly with
+          Liberty Media's stated strategic priority of expanding F1's American
+          audience. Liberty paid $4.4 billion for the sport in 2017 with
+          explicit shareholder commitments to growing US revenue.
+          <em>Drive to Survive</em> launched on Netflix in 2019; the Miami Grand
+          Prix debuted in 2022; Las Vegas followed in 2023.
+          <a
+            href="https://medium.com/@plumresearch/drive-to-survive-how-netflix-ignited-the-love-for-formula-1-in-the-united-states-c60169b911ec"
+            target="_blank"
+            rel="noopener noreferrer"
+            >By the time Netflix released its fourth season, the show was the
+            most-watched series in 33 countries during its release weeks</a
+          >. US sponsorship followed the audience.
+        </p>
+        <p>
+          <strong>Western European hold.</strong> Despite the US surge, Western
+          Europe remains the second-largest source of sponsors at 39%. The
+          category is broader than it looks — the data includes UK financial
+          services, Italian luxury goods, German engineering, and French
+          aerospace.
+        </p>
+        <p>
+          <strong>Asia Pacific flat.</strong> 8% in 2026, essentially unchanged
+          from 2020. Notable given that F1 races in Japan, Singapore, China, and
+          Australia.
+        </p>
+        <p>
+          <strong>The China gap.</strong> While the Chinese Grand Prix returned
+          to Shanghai in 2024, Chinese corporate sponsorship has yet to match
+          the strong local fan interest, with most support so far coming from
+          Zhou Guanyu's personal sponsors rather than from major commercial
+          partnerships.
+        </p>
+      </article>
+    </section>
+
+    <footer>
+      <div class="footer-inner">
+        <div>
+          <h5>About this project</h5>
+          <p>
+            This story grew out of a Bloomberg Graphics investigation into
+            gambling sponsors on Premier League kits — which raised a question:
+            what does the same analysis look like across forty-five years of
+            Formula 1? Two datasets underpin the reporting. The title sponsor
+            dataset covers every Formula 1 team entry from 1981 through 2026,
+            classified by industry. The full sponsor dataset covers every
+            visible sponsor on every car for the 2020 through 2026 seasons,
+            sourced from team-released livery imagery, official team partner
+            pages, and contemporaneous reporting.
+          </p>
+        </div>
+        <div>
+          <h5>Methodology &amp; sources</h5>
+          <p>
+            Industry classifications use the 2022 North American Industry
+            Classification System (NAICS), the same taxonomy used by the U.S.
+            Census Bureau and federal labor data. Classifications were assigned
+            using Claude (Anthropic), which mapped each sponsor's primary
+            business activity to the appropriate NAICS code based on its
+            training knowledge of each company. Around 40 ambiguous cases —
+            defunct sponsors, small private companies, and brands without a US
+            business registry presence — were verified through independent
+            research, including LinkedIn company pages, corporate websites, and
+            motorsport press archives. The author reviewed all assignments and
+            takes responsibility for the final classifications.
+          </p>
+        </div>
+      </div>
+    </footer>
+
+    <script>
+      // =========================================================================
+      // CAR GAME OVERLAY — fires when reader scrolls to car comparison
+      // =========================================================================
+      (function () {
+        const overlay = document.getElementById("carGameOverlay");
+        const backBtn = document.getElementById("carGameBack");
+        const skipBtn = document.getElementById("carGameSkip");
+        const submitBtn = document.getElementById("carGameSubmit");
+        const continueBtn = document.getElementById("carGameContinue");
+        const headlineWrap = document.getElementById("carGameHeadlineWrap");
+        const summary = document.getElementById("carGameSummary");
+        const actionsWrap = document.getElementById("carGameActions");
+        const continueWrap = document.getElementById("carGameContinueWrap");
+
+        // Correct answers — update once confirmed with annotated photos
+        const ANSWER_1996 = 11;
+        const ANSWER_2026 = 19;
+
+        // Annotated photo paths — drop files in when ready; falls back silently if missing
+        const ANNOTATED_1996 = "assets/images/ferrari-1996-annotated.jpg";
+        const ANNOTATED_2026 = "assets/images/ferrari-2026-annotated.avif";
+
+        let triggered = false;
+        let scrollY0 = 0;
+
+        // ── Trigger: watch the static car comparison section ────────────────────
+        const observer = new IntersectionObserver(
+          (entries) => {
+            if (entries[0].isIntersecting && !triggered) {
+              triggered = true;
+              observer.disconnect();
+              setTimeout(openOverlay, 350);
+            }
+          },
+          { threshold: 0.3 },
+        );
+        observer.observe(document.querySelector(".car-comparison"));
+
+        function openOverlay() {
+          scrollY0 = window.scrollY;
+          overlay.style.display = "block";
+          overlay.getBoundingClientRect();
+          overlay.style.opacity = "1";
+          overlay.style.transform = "translateY(0)";
+          document.body.classList.add("game-active");
+        }
+
+        function closeOverlay() {
+          overlay.style.opacity = "0";
+          overlay.style.transform = "translateY(24px)";
+          setTimeout(() => {
+            overlay.style.display = "none";
+            document.body.classList.remove("game-active");
+          }, 380);
+        }
+
+        // Swap an img src only if the new file actually loads (graceful fallback)
+        function swapIfExists(imgEl, newSrc) {
+          const probe = new Image();
+          probe.onload = () => {
+            imgEl.src = newSrc;
+          };
+          probe.src = newSrc;
+        }
+
+        // ── Show results (called by Submit or Skip) ──────────────────────────────
+        function showResults(skipped) {
+          const raw1996 = document.getElementById("guess1996").value.trim();
+          const raw2026 = document.getElementById("guess2026").value.trim();
+          const g1996 = raw1996 !== "" ? parseInt(raw1996, 10) : NaN;
+          const g2026 = raw2026 !== "" ? parseInt(raw2026, 10) : NaN;
+
+          // Hide inputs
+          document.getElementById("guessWrap1996").style.display = "none";
+          document.getElementById("guessWrap2026").style.display = "none";
+
+          // Show per-car result rows (except on skip)
+          if (!skipped) {
+            document.getElementById("yourGuess1996").textContent = isNaN(g1996)
+              ? "—"
+              : g1996;
+            document.getElementById("yourGuess2026").textContent = isNaN(g2026)
+              ? "—"
+              : g2026;
+            document.getElementById("guessResult1996").style.display = "flex";
+            document.getElementById("guessResult2026").style.display = "flex";
+          }
+
+          // Swap photos to annotated versions if the files exist
+          swapIfExists(document.getElementById("img1996"), ANNOTATED_1996);
+          swapIfExists(document.getElementById("img2026"), ANNOTATED_2026);
+
+          // Swap game UI for results UI
+          headlineWrap.style.display = "none";
+          skipBtn.style.display = "none";
+          actionsWrap.style.display = "none";
+          continueWrap.style.display = "flex";
+          summary.style.display = "block";
+
+          overlay.scrollTo({ top: 0, behavior: "smooth" });
+
+          if (skipped) {
+            document.getElementById("resultsScore").textContent = "—";
+            document.getElementById("resultsSub").textContent =
+              "Here are the numbers:";
+          } else {
+            function grade(guess, answer, tol) {
+              const diff = Math.abs(guess - answer);
+              if (diff <= tol) return "spot on";
+              if (diff <= tol * 2) return `close (off by ${diff})`;
+              return `off by ${diff}`;
+            }
+            const parts = [];
+            if (!isNaN(g1996))
+              parts.push(`1996: ${grade(g1996, ANSWER_1996, 2)}`);
+            if (!isNaN(g2026))
+              parts.push(`2026: ${grade(g2026, ANSWER_2026, 4)}`);
+            document.getElementById("resultsScore").textContent = parts.length
+              ? parts.join(" · ")
+              : "—";
+            document.getElementById("resultsSub").textContent =
+              "Circled answers appear on the photos above.";
+          }
+        }
+
+        // ── Continue reading: dismiss overlay + update static section ────────────
+        function dismissAndReplace() {
+          const src1996 = document.getElementById("img1996").src;
+          const src2026 = document.getElementById("img2026").src;
+          closeOverlay();
+          setTimeout(() => {
+            const target = document.getElementById("carComparisonWide");
+            if (!target) return;
+            const fresh = document.createElement("div");
+            fresh.className = "article-wide";
+            fresh.id = "carComparisonWide";
+            fresh.innerHTML = `
+        <div class="car-comparison">
+          <div class="car-card">
+            <div class="car-year">1996 SEASON</div>
+            <div class="car-team">Ferrari F310</div>
+            <div class="car-svg-wrap">
+              <img src="${src1996}" alt="Ferrari F310, 1996 season"
+                   style="width:100%;display:block;border-radius:4px;">
+            </div>
+            <div class="photo-credit">Photo: Wouter Melissen</div>
+          </div>
+          <div class="car-card">
+            <div class="car-year">2026 SEASON</div>
+            <div class="car-team">Ferrari SF-26</div>
+            <div class="car-svg-wrap">
+              <img src="${src2026}" alt="Ferrari SF-26, 2026 season"
+                   style="width:100%;display:block;border-radius:4px;">
+            </div>
+            <div class="photo-credit">Photo: formula1.com</div>
+          </div>
+        </div>
+        <div class="viz-caption">In 1996, Ferrari's livery effectively was its full sponsor roster. By 2026, Ferrari has 40 partners total, and only some appear on the car itself.</div>
+      `;
+            target.replaceWith(fresh);
+          }, 420);
+        }
+
+        backBtn.addEventListener("click", () => {
+          closeOverlay();
+          setTimeout(
+            () => window.scrollTo({ top: scrollY0, behavior: "smooth" }),
+            200,
+          );
+        });
+        skipBtn.addEventListener("click", () => showResults(true));
+        submitBtn.addEventListener("click", () => showResults(false));
+        continueBtn.addEventListener("click", dismissAndReplace);
+      })();
+
+      // =========================================================================
+      // CONSTANTS
+      // =========================================================================
+      const YEARS = Array.from({ length: 46 }, (_, i) => 1981 + i);
+      const SEASONS = [2020, 2021, 2022, 2023, 2024, 2025, 2026];
+
+      const ISO_TO_COUNTRY = {
+        4: "Afghanistan",
+        8: "Albania",
+        12: "Algeria",
+        24: "Angola",
+        32: "Argentina",
+        36: "Australia",
+        40: "Austria",
+        50: "Bangladesh",
+        56: "Belgium",
+        64: "Bhutan",
+        76: "Brazil",
+        100: "Bulgaria",
+        124: "Canada",
+        144: "Sri Lanka",
+        152: "Chile",
+        156: "China",
+        170: "Colombia",
+        191: "Croatia",
+        196: "Cyprus",
+        203: "Czech Republic",
+        208: "Denmark",
+        218: "Ecuador",
+        246: "Finland",
+        250: "France",
+        276: "Germany",
+        300: "Greece",
+        320: "Guatemala",
+        348: "Hungary",
+        356: "India",
+        360: "Indonesia",
+        364: "Iran",
+        376: "Israel",
+        380: "Italy",
+        388: "Jamaica",
+        392: "Japan",
+        400: "Jordan",
+        410: "South Korea",
+        414: "Kuwait",
+        422: "Lebanon",
+        442: "Luxembourg",
+        458: "Malaysia",
+        470: "Malta",
+        484: "Mexico",
+        504: "Morocco",
+        528: "Netherlands",
+        554: "New Zealand",
+        566: "Nigeria",
+        578: "Norway",
+        586: "Pakistan",
+        616: "Poland",
+        620: "Portugal",
+        634: "Qatar",
+        642: "Romania",
+        643: "Russia",
+        682: "Saudi Arabia",
+        688: "Serbia",
+        702: "Singapore",
+        703: "Slovakia",
+        705: "Slovenia",
+        710: "South Africa",
+        724: "Spain",
+        752: "Sweden",
+        756: "Switzerland",
+        764: "Thailand",
+        792: "Turkey",
+        784: "UAE",
+        804: "Ukraine",
+        826: "UK",
+        840: "USA",
+        858: "Uruguay",
+        862: "Venezuela",
+        704: "Vietnam",
+        716: "Zimbabwe",
+      };
+
+      function mapToL1(row) {
+        const n = row.naics_2digit_name || "";
+        const c = row.naics_2digit || "";
+        if (n === "Manufacturing") return "Manufacturing";
+        if (n === "Finance and Insurance") return "Finance/Insurance";
+        if (n === "Information") return "Information";
+        if (n === "Real Estate and Rental and Leasing") return "Real Estate";
+        if (n === "Transportation and Warehousing") return "Transportation";
+        if (n.startsWith("Arts") || n.startsWith("Accommodation"))
+          return "Arts/Recreation";
+        if (c === "21") return "Mining/Oil & gas";
+        return "Other";
+      }
+
+      function mapToMfgSub(row) {
+        const n = row.naics_4digit_name || "";
+        if (n.includes("Tobacco")) return "Tobacco Mfg";
+        if (n.includes("Beverage")) return "Beverage Mfg";
+        if (n === "Motor Vehicle Manufacturing") return "Motor Vehicle Mfg";
+        if (
+          n.includes("Apparel") ||
+          n.includes("Cut and Sew") ||
+          n.includes("Textile")
+        )
+          return "Apparel Mfg";
+        if (
+          n.includes("Computer and Peripheral") ||
+          n.includes("Electronic Computer")
+        )
+          return "Computer Hardware";
+        if (n.includes("Audio") && n.includes("Video"))
+          return "Audio/Video Equip";
+        return "Other Mfg";
+      }
+
+      function mapTo4d(row) {
+        const n4 = row.naics_4digit_name || "";
+        if (n4.includes("Tobacco")) return "Tobacco Mfg";
+        if (n4.includes("Beverage")) return "Beverage Mfg";
+        if (n4 === "Motor Vehicle Manufacturing") return "Auto Mfg";
+        if (n4 === "Oil and Gas Extraction") return "Oil & Gas";
+        if (n4.includes("Telecom") || n4.includes("Wireless")) return "Telecom";
+        if (
+          n4.includes("Software") ||
+          n4.includes("Computer and Peripheral") ||
+          n4.includes("Computer Systems Design")
+        )
+          return "Technology";
+        if (n4.includes("Other Financial Investment"))
+          return "Crypto / Fintech";
+        if (n4.includes("Gambling")) return "Gambling";
+        return "Other";
+      }
+
+      function shortLabel(name) {
+        const map = {
+          "Software Publishers": "Software publishers",
+          "Other Financial Investment Activities":
+            "Financial investment (crypto/fintech)",
+          "Beverage Manufacturing": "Beverage manufacturing",
+          "Cut and Sew Apparel Manufacturing": "Apparel manufacturing",
+          "Motor Vehicle Parts (except Tires) Manufacturing":
+            "Motor vehicle parts",
+          "Tire Manufacturing (except Retreading)": "Tire / rubber (tires)",
+          "Computing Infrastructure Providers, Data Processing, Web Hosting, and Related Services":
+            "Cloud / data services",
+          "Oil and Gas Extraction": "Oil & gas extraction",
+          "Motor Vehicle Manufacturing": "Motor vehicle manufacturing",
+          "Audio and Video Equipment Manufacturing": "Audio & video equipment",
+          "Metalworking Machinery Manufacturing": "Metalworking machinery",
+          "Tobacco Manufacturing": "Tobacco manufacturing",
+          "Gambling Industries": "Gambling",
+          "Activities Related to Real Estate": "Real estate activities",
+          "Freight Transportation Arrangement": "Freight / logistics",
+          "Port and Harbor Operations": "Port operations",
+          "Scheduled Passenger Air Transportation": "Air transportation",
+          "Hotels (except Casino Hotels) and Motels": "Hotels & accommodation",
+          "Investment Banking and Securities Intermediation":
+            "Investment banking",
+          "Financial Transactions Processing, Reserve, and Clearinghouse Activities":
+            "Payment processing",
+          "Accounting, Tax Preparation, Bookkeeping, and Payroll Services":
+            "Accounting / consulting",
+          "Motor Vehicle Parts Manufacturing": "Motor vehicle parts mfg",
+          "Semiconductor and Other Electronic Component Manufacturing":
+            "Semiconductors / electronics",
+          "Electronic Computer Manufacturing": "Computer manufacturing",
+          "Telephone Apparatus Manufacturing": "Telecom equipment",
+          "Communications Equipment Manufacturing": "Communications equipment",
+          "Machine Shops; Turned Product; and Screw, Nut, and Bolt Manufacturing":
+            "Machine shops / fasteners",
+          "Other Miscellaneous Manufacturing": "Misc. manufacturing",
+        };
+        if (map[name]) return map[name];
+        return name.length > 38 ? name.substring(0, 36) + "…" : name;
+      }
+
+      // =========================================================================
+      // INDUSTRY TREND — §02 (D3 Streamgraph + Treemap)
+      // =========================================================================
+      let drillL1Data, drillMfgChildren, drillTobaccoSponsors, drill4dData;
+
+      const L1_COLORS = {
+        Manufacturing: "#7a3a1f",
+        "Mining/Oil & gas": "#2a2a2a",
+        "Finance/Insurance": "#2d4a8a",
+        Information: "#534AB7",
+        Transportation: "#1d7b6a",
+        "Arts/Recreation": "#b8527a",
+        "Real Estate": "#BA7517",
+        Other: "#888880",
+      };
+      const MFG_COLORS = {
+        "Tobacco Mfg": "#7a3a1f",
+        "Beverage Mfg": "#c8312c",
+        "Motor Vehicle Mfg": "#2d4a8a",
+        "Apparel Mfg": "#b8527a",
+        "Computer Hardware": "#534AB7",
+        "Audio/Video Equip": "#1d7b6a",
+        "Other Mfg": "#888880",
+      };
+      const TOBACCO_COLORS = [
+        "#7a3a1f",
+        "#a85530",
+        "#5a2a18",
+        "#c87050",
+        "#3a1a0e",
+        "#8a3a20",
+        "#d09070",
+        "#6a3018",
+        "#a05030",
+        "#888880",
+      ];
+
+      // 4-digit NAICS categories — story-critical arcs, everything else → Other
+      const D4_CATS = [
+        "Tobacco Mfg",
+        "Beverage Mfg",
+        "Auto Mfg",
+        "Oil & Gas",
+        "Telecom",
+        "Technology",
+        "Crypto / Fintech",
+        "Gambling",
+        "Other",
+      ];
+      const D4_COLORS = {
+        "Tobacco Mfg": "#7a3a1f",
+        "Beverage Mfg": "#c8312c",
+        "Auto Mfg": "#1a4a7a",
+        "Oil & Gas": "#4a3810",
+        Telecom: "#2a8a70",
+        Technology: "#534AB7",
+        "Crypto / Fintech": "#1D9E75",
+        Gambling: "#c87818",
+        Other: "#888880",
+      };
+
+      // ── Treemap drill state ───────────────────────────────────────────────────
+      let tmLevel = 1;
+      let tmCategory = null;
+
+      // ── Streamgraph ───────────────────────────────────────────────────────────
+      function renderStreamgraph(mode) {
+        const container = document.getElementById("streamgraph-container");
+        const tooltip = document.getElementById("stream-tooltip");
+        Array.from(container.children).forEach((c) => {
+          if (c !== tooltip) c.remove();
+        });
+
+        const margin = { top: 28, right: 20, bottom: 36, left: 32 };
+        const W = container.clientWidth || 860;
+        const H = 320;
+        const w = W - margin.left - margin.right;
+        const h = H - margin.top - margin.bottom;
+
+        const svg = d3
+          .select(container)
+          .insert("svg", ":first-child")
+          .attr("viewBox", `0 0 ${W} ${H}`)
+          .style("width", "100%")
+          .style("height", H + "px")
+          .style("display", "block");
+        const g = svg
+          .append("g")
+          .attr("transform", `translate(${margin.left},${margin.top})`);
+
+        const cats = Object.keys(drillL1Data);
+        const data = YEARS.map((y, i) => {
+          const obj = { year: y };
+          cats.forEach((c) => {
+            obj[c] = drillL1Data[c][i] || 0;
+          });
+          return obj;
+        });
+
+        const stack = d3
+          .stack()
+          .keys(cats)
+          .offset(mode === "stream" ? d3.stackOffsetWiggle : d3.stackOffsetNone)
+          .order(
+            mode === "stream" ? d3.stackOrderInsideOut : d3.stackOrderNone,
+          );
+        const series = stack(data);
+
+        const xScale = d3.scaleLinear().domain([1981, 2026]).range([0, w]);
+        const yExtent = [
+          d3.min(series, (s) => d3.min(s, (d) => d[0])),
+          d3.max(series, (s) => d3.max(s, (d) => d[1])),
+        ];
+        const yScale = d3.scaleLinear().domain(yExtent).nice().range([h, 0]);
+
+        const area = d3
+          .area()
+          .x((d) => xScale(d.data.year))
+          .y0((d) => yScale(d[0]))
+          .y1((d) => yScale(d[1]))
+          .curve(d3.curveCatmullRom.alpha(0.5));
+
+        g.selectAll(".stream")
+          .data(series)
+          .join("path")
+          .attr("class", "stream")
+          .attr("d", area)
+          .attr("fill", (d) => L1_COLORS[d.key] || "#888")
+          .attr("opacity", 0.85)
+          .on("mouseover", function () {
+            g.selectAll(".stream").attr("opacity", 0.18);
+            d3.select(this).attr("opacity", 1);
+            tooltip.style.display = "block";
+          })
+          .on("mousemove", function (event) {
+            const key = d3.select(this).datum().key;
+            const [mx] = d3.pointer(event, g.node());
+            const yr = Math.round(xScale.invert(mx));
+            if (yr >= 1981 && yr <= 2026) {
+              const vi = yr - 1981;
+              const val = drillL1Data[key][vi] || 0;
+              tooltip.innerHTML = `<strong>${key}</strong><br>${yr}: ${val} sponsorship${val !== 1 ? "s" : ""}`;
+            }
+            const rect = container.getBoundingClientRect();
+            tooltip.style.left = event.clientX - rect.left + 14 + "px";
+            tooltip.style.top = event.clientY - rect.top - 38 + "px";
+          })
+          .on("mouseout", function () {
+            g.selectAll(".stream").attr("opacity", 0.85);
+            tooltip.style.display = "none";
+          });
+
+        // Vertical event annotations
+        const ANNS = [
+          { year: 1999, label: "Tobacco peak" },
+          { year: 2007, label: "EU ban phase-out" },
+          { year: 2022, label: "Crypto surge" },
+        ];
+        ANNS.forEach((a) => {
+          const x = xScale(a.year);
+          g.append("line")
+            .attr("x1", x)
+            .attr("x2", x)
+            .attr("y1", 0)
+            .attr("y2", h)
+            .attr("stroke", "#b0aba0")
+            .attr("stroke-dasharray", "3,3")
+            .attr("stroke-width", 1);
+          g.append("text")
+            .attr("x", x + 3)
+            .attr("y", 10)
+            .attr("font-family", "var(--mono)")
+            .attr("font-size", "9px")
+            .attr("fill", "#8a8780")
+            .text(a.label);
+        });
+
+        // x-axis
+        g.append("g")
+          .attr("transform", `translate(0,${h})`)
+          .call(d3.axisBottom(xScale).tickFormat(d3.format("d")).ticks(9))
+          .call((ax) => {
+            ax.select(".domain").attr("stroke", "#d8d3c7");
+            ax.selectAll(".tick line").attr("stroke", "#d8d3c7");
+            ax.selectAll("text")
+              .attr("font-family", "Inter,sans-serif")
+              .attr("font-size", "11px")
+              .attr("fill", "#4a4a4a");
+          });
+
+        if (mode === "stacked") {
+          g.append("g")
+            .call(d3.axisLeft(yScale).ticks(4))
+            .call((ax) => {
+              ax.select(".domain").remove();
+              ax.selectAll(".tick line").attr("stroke", "#e8e4d9");
+              ax.selectAll("text")
+                .attr("font-family", "Inter,sans-serif")
+                .attr("font-size", "11px")
+                .attr("fill", "#4a4a4a");
+            });
+        }
+
+        // Legend
+        const legend = document.getElementById("stream-legend");
+        legend.innerHTML = "";
+        cats.forEach((key) => {
+          const item = document.createElement("span");
+          item.className = "legend-item";
+          item.innerHTML = `<span class="legend-swatch" style="background:${L1_COLORS[key] || "#888"}"></span>${key}`;
+          legend.appendChild(item);
+        });
+      }
+
+      // ── 4-digit NAICS streamgraph ─────────────────────────────────────────────
+      function renderStreamgraph4d() {
+        const container = document.getElementById("streamgraph-4d-container");
+        const tooltip = document.getElementById("stream-4d-tooltip");
+        Array.from(container.children).forEach((c) => {
+          if (c !== tooltip) c.remove();
+        });
+
+        const margin = { top: 28, right: 20, bottom: 36, left: 32 };
+        const W = container.clientWidth || 860;
+        const H = 340;
+        const w = W - margin.left - margin.right;
+        const h = H - margin.top - margin.bottom;
+
+        const svg = d3
+          .select(container)
+          .insert("svg", ":first-child")
+          .attr("viewBox", `0 0 ${W} ${H}`)
+          .style("width", "100%")
+          .style("height", H + "px")
+          .style("display", "block");
+        const g = svg
+          .append("g")
+          .attr("transform", `translate(${margin.left},${margin.top})`);
+
+        const cats = D4_CATS.filter(
+          (c) => drill4dData[c] && drill4dData[c].some((v) => v > 0),
+        );
+        const data = YEARS.map((y, i) => {
+          const obj = { year: y };
+          cats.forEach((c) => {
+            obj[c] = drill4dData[c][i] || 0;
+          });
+          return obj;
+        });
+
+        const stack = d3
+          .stack()
+          .keys(cats)
+          .offset(d3.stackOffsetNone)
+          .order(d3.stackOrderNone);
+        const series = stack(data);
+
+        const xScale = d3.scaleLinear().domain([1981, 2026]).range([0, w]);
+        const maxY = d3.max(series, (s) => d3.max(s, (d) => d[1]));
+        const yScale = d3.scaleLinear().domain([0, maxY]).nice().range([h, 0]);
+
+        const area = d3
+          .area()
+          .x((d) => xScale(d.data.year))
+          .y0((d) => yScale(d[0]))
+          .y1((d) => yScale(d[1]))
+          .curve(d3.curveCatmullRom.alpha(0.5));
+
+        g.selectAll(".stream-4d")
+          .data(series)
+          .join("path")
+          .attr("class", "stream-4d")
+          .attr("d", area)
+          .attr("fill", (d) => D4_COLORS[d.key] || "#888")
+          .attr("opacity", 0.85)
+          .on("mouseover", function () {
+            g.selectAll(".stream-4d").attr("opacity", 0.18);
+            d3.select(this).attr("opacity", 1);
+            tooltip.style.display = "block";
+          })
+          .on("mousemove", function (event) {
+            const key = d3.select(this).datum().key;
+            const [mx] = d3.pointer(event, g.node());
+            const yr = Math.round(xScale.invert(mx));
+            if (yr >= 1981 && yr <= 2026) {
+              const vi = yr - 1981;
+              const val = drill4dData[key][vi] || 0;
+              tooltip.innerHTML = `<strong>${key}</strong><br>${yr}: ${val} sponsorship${val !== 1 ? "s" : ""}`;
+            }
+            const rect = container.getBoundingClientRect();
+            tooltip.style.left = event.clientX - rect.left + 14 + "px";
+            tooltip.style.top = event.clientY - rect.top - 38 + "px";
+          })
+          .on("mouseout", function () {
+            g.selectAll(".stream-4d").attr("opacity", 0.85);
+            tooltip.style.display = "none";
+          });
+
+        const ANNS_4D = [
+          { year: 1999, label: "Tobacco peak" },
+          { year: 2007, label: "EU ban phase-out" },
+        ];
+        ANNS_4D.forEach((a) => {
+          const x = xScale(a.year);
+          g.append("line")
+            .attr("x1", x)
+            .attr("x2", x)
+            .attr("y1", 0)
+            .attr("y2", h)
+            .attr("stroke", "#b0aba0")
+            .attr("stroke-dasharray", "3,3")
+            .attr("stroke-width", 1);
+          g.append("text")
+            .attr("x", x + 3)
+            .attr("y", 10)
+            .attr("font-family", "var(--mono)")
+            .attr("font-size", "9px")
+            .attr("fill", "#8a8780")
+            .text(a.label);
+        });
+
+        g.append("g")
+          .attr("transform", `translate(0,${h})`)
+          .call(d3.axisBottom(xScale).tickFormat(d3.format("d")).ticks(9))
+          .call((ax) => {
+            ax.select(".domain").attr("stroke", "#d8d3c7");
+            ax.selectAll(".tick line").attr("stroke", "#d8d3c7");
+            ax.selectAll("text")
+              .attr("font-family", "Inter,sans-serif")
+              .attr("font-size", "11px")
+              .attr("fill", "#4a4a4a");
+          });
+
+        g.append("g")
+          .call(d3.axisLeft(yScale).ticks(4))
+          .call((ax) => {
+            ax.select(".domain").remove();
+            ax.selectAll(".tick line").attr("stroke", "#e8e4d9");
+            ax.selectAll("text")
+              .attr("font-family", "Inter,sans-serif")
+              .attr("font-size", "11px")
+              .attr("fill", "#4a4a4a");
+          });
+
+        const legend = document.getElementById("stream-4d-legend");
+        legend.innerHTML = "";
+        cats.forEach((key) => {
+          const item = document.createElement("span");
+          item.className = "legend-item";
+          item.innerHTML = `<span class="legend-swatch" style="background:${D4_COLORS[key] || "#888"}"></span>${key}`;
+          legend.appendChild(item);
+        });
+      }
+
+      // ── Treemap ───────────────────────────────────────────────────────────────
+      function renderTreemap() {
+        const container = document.getElementById("treemap-container");
+        container.innerHTML = "";
+
+        const yr = parseInt(
+          document.getElementById("tm-year-slider").value,
+          10,
+        );
+        const tidx = yr - 1981;
+        document.getElementById("tm-year-label").textContent = yr;
+
+        let leafData, colorFn;
+        if (tmLevel === 1) {
+          leafData = Object.entries(drillL1Data)
+            .map(([name, vals]) => ({ name, value: vals[tidx] || 0 }))
+            .filter((d) => d.value > 0);
+          colorFn = (name) => L1_COLORS[name] || "#888880";
+          document.getElementById("tm-bc1").textContent = "All industries";
+          document.getElementById("tm-bc1").className = "active";
+          document.getElementById("tm-bc2").textContent = "";
+          document.getElementById("tm-back").style.display = "none";
+          document.getElementById("tm-subtitle").textContent =
+            "Click Manufacturing to drill into sub-categories";
+        } else if (tmLevel === 2) {
+          leafData = Object.entries(drillMfgChildren)
+            .map(([name, vals]) => ({ name, value: vals[tidx] || 0 }))
+            .filter((d) => d.value > 0);
+          colorFn = (name) => MFG_COLORS[name] || "#888880";
+          document.getElementById("tm-bc1").className = "";
+          document.getElementById("tm-bc2").textContent = " → Manufacturing";
+          document.getElementById("tm-bc2").className = "active";
+          document.getElementById("tm-back").style.display = "";
+          document.getElementById("tm-subtitle").textContent =
+            "Click Tobacco Mfg to see individual brands";
+        } else {
+          const tobNames = Object.keys(drillTobaccoSponsors);
+          leafData = Object.entries(drillTobaccoSponsors)
+            .map(([name, vals]) => ({ name, value: vals[tidx] || 0 }))
+            .filter((d) => d.value > 0);
+          colorFn = (name) =>
+            TOBACCO_COLORS[tobNames.indexOf(name) % TOBACCO_COLORS.length];
+          document.getElementById("tm-bc2").textContent = " → Mfg → Tobacco";
+          document.getElementById("tm-bc2").className = "active";
+          document.getElementById("tm-back").style.display = "";
+          document.getElementById("tm-subtitle").textContent =
+            "Individual tobacco title-sponsor brands";
+        }
+
+        if (leafData.length === 0) {
+          container.innerHTML = `<div style="padding:40px;text-align:center;font-family:var(--sans);font-size:13px;color:var(--ink-faint);">No title sponsors in ${yr}</div>`;
+          return;
+        }
+
+        const W = container.clientWidth || 860;
+        const H = 380;
+
+        const root = d3
+          .hierarchy({ name: "root", children: leafData })
+          .sum((d) => d.value);
+        d3.treemap().size([W, H]).paddingOuter(4).paddingInner(2).round(true)(
+          root,
+        );
+
+        const svg = d3
+          .select(container)
+          .append("svg")
+          .attr("viewBox", `0 0 ${W} ${H}`)
+          .style("width", "100%")
+          .style("height", H + "px")
+          .style("display", "block");
+
+        const cell = svg
+          .selectAll("g")
+          .data(root.leaves())
+          .join("g")
+          .attr("transform", (d) => `translate(${d.x0},${d.y0})`);
+
+        cell
+          .append("rect")
+          .attr("width", (d) => Math.max(0, d.x1 - d.x0))
+          .attr("height", (d) => Math.max(0, d.y1 - d.y0))
+          .attr("fill", (d) => colorFn(d.data.name))
+          .attr("opacity", 0.88)
+          .style("cursor", (d) => {
+            if (tmLevel === 1 && d.data.name === "Manufacturing")
+              return "pointer";
+            if (tmLevel === 2 && d.data.name === "Tobacco Mfg")
+              return "pointer";
+            return "default";
+          });
+
+        cell
+          .append("title")
+          .text(
+            (d) =>
+              `${d.data.name}: ${d.data.value} season${d.data.value !== 1 ? "s" : ""}`,
+          );
+
+        cell.each(function (d) {
+          const cw = d.x1 - d.x0;
+          const ch = d.y1 - d.y0;
+          if (cw < 36 || ch < 18) return;
+          const g2 = d3.select(this);
+          const label =
+            d.data.name.length > 18 && cw < 120
+              ? d.data.name.substring(0, 16) + "…"
+              : d.data.name;
+          g2.append("text")
+            .attr("x", 6)
+            .attr("y", 15)
+            .attr("font-family", "Inter,sans-serif")
+            .attr("font-size", cw > 100 ? "12px" : "10px")
+            .attr("fill", "#f4f1ea")
+            .attr("pointer-events", "none")
+            .text(label);
+          if (ch > 32) {
+            g2.append("text")
+              .attr("x", 6)
+              .attr("y", cw > 100 ? 30 : 27)
+              .attr("font-family", "Inter,sans-serif")
+              .attr("font-size", "10px")
+              .attr("fill", "rgba(244,241,234,0.65)")
+              .attr("pointer-events", "none")
+              .text(
+                d.data.value + (d.data.value === 1 ? " season" : " seasons"),
+              );
+          }
+        });
+
+        cell.on("click", (event, d) => {
+          if (tmLevel === 1 && d.data.name === "Manufacturing") {
+            tmLevel = 2;
+            renderTreemap();
+          } else if (tmLevel === 2 && d.data.name === "Tobacco Mfg") {
+            tmLevel = 3;
+            renderTreemap();
+          }
+        });
+      }
+
+      // =========================================================================
+      // DATA PROCESSING (uses inline data from js/data.js — no fetch needed)
+      // =========================================================================
+      const titleRaw = window.TITLE_DATA; // Year already a number
+      const fullRaw = window.FULL_DATA; // season already a number
+
+      // ── Filter & deduplicate title sponsors ──────────────────────────────────
+      const titleValid = titleRaw.filter(
+        (d) =>
+          d.title_sponsor &&
+          d.title_sponsor !== "N/A" &&
+          d.naics_2digit &&
+          d.naics_2digit !== "N/A",
+      );
+      const titleDedup = [
+        ...new Map(
+          titleValid.map((d) => [
+            `${d.Year}|${d.Full_Entry}|${d.title_sponsor}`,
+            d,
+          ]),
+        ).values(),
+      ];
+
+      // ── Stat numbers ──────────────────────────────────────────────────────────
+      const allSponsorNames = new Set(fullRaw.map((d) => d.sponsor_name));
+      const allTitleSponsorNames = new Set(
+        titleDedup.map((d) => d.title_sponsor),
+      );
+      const tobaccoCount = titleDedup.filter(
+        (d) => d.sponsor_industry === "Tobacco",
+      ).length;
+      const s80s = titleDedup.filter(
+        (d) => d.Year >= 1981 && d.Year <= 1989,
+      ).length;
+      const s10s = titleDedup.filter(
+        (d) => d.Year >= 2010 && d.Year <= 2019,
+      ).length;
+      const pctChange = s80s > 0 ? Math.round(((s10s - s80s) / s80s) * 100) : 0;
+      const us2020 = fullRaw.filter(
+        (d) => d.season === 2020 && d.hq_country === "USA",
+      ).length;
+      const us2026 = fullRaw.filter(
+        (d) => d.season === 2026 && d.hq_country === "USA",
+      ).length;
+      const usChange =
+        us2020 > 0 ? Math.round(((us2026 - us2020) / us2020) * 100) : 0;
+      const count2026 = fullRaw.filter((d) => d.season === 2026).length;
+
+      document.getElementById("stat-total-sponsors").textContent =
+        allSponsorNames.size;
+      document.getElementById("stat-title-count").textContent =
+        allTitleSponsorNames.size;
+      const tobaccoEl = document.getElementById("stat-tobacco-count");
+      if (tobaccoEl) tobaccoEl.textContent = tobaccoCount;
+      document.getElementById("stat-80s-count").textContent = s80s;
+      document.getElementById("stat-10s-count").textContent = s10s;
+      document.getElementById("stat-decade-change").textContent =
+        (pctChange >= 0 ? "+" : "") + pctChange + "%";
+      const usEl2020 = document.getElementById("stat-us-2020");
+      const usEl2026 = document.getElementById("stat-us-2026");
+      const usElChange = document.getElementById("stat-us-change");
+      if (usEl2020) usEl2020.textContent = us2020;
+      if (usEl2026) usEl2026.textContent = us2026;
+      if (usElChange) usElChange.textContent = `+${usChange}% across the grid`;
+      document.getElementById("stat-2026-count").textContent = count2026;
+
+      // ── Build drill-down data ─────────────────────────────────────────────────
+      const L1_CATS = [
+        "Manufacturing",
+        "Mining/Oil & gas",
+        "Finance/Insurance",
+        "Information",
+        "Transportation",
+        "Arts/Recreation",
+        "Real Estate",
+        "Other",
+      ];
+      drillL1Data = {};
+      L1_CATS.forEach((c) => (drillL1Data[c] = Array(46).fill(0)));
+      titleDedup.forEach((d) => {
+        const idx = d.Year - 1981;
+        if (idx < 0 || idx >= 46) return;
+        drillL1Data[mapToL1(d)][idx]++;
+      });
+
+      const MFG_CATS = [
+        "Tobacco Mfg",
+        "Beverage Mfg",
+        "Motor Vehicle Mfg",
+        "Apparel Mfg",
+        "Computer Hardware",
+        "Audio/Video Equip",
+        "Other Mfg",
+      ];
+      drillMfgChildren = {};
+      MFG_CATS.forEach((c) => (drillMfgChildren[c] = Array(46).fill(0)));
+      titleDedup
+        .filter((d) => d.naics_2digit === "31-33")
+        .forEach((d) => {
+          const idx = d.Year - 1981;
+          if (idx < 0 || idx >= 46) return;
+          drillMfgChildren[mapToMfgSub(d)][idx]++;
+        });
+
+      drillTobaccoSponsors = {};
+      titleDedup
+        .filter((d) => (d.naics_4digit_name || "").includes("Tobacco"))
+        .forEach((d) => {
+          if (!drillTobaccoSponsors[d.title_sponsor])
+            drillTobaccoSponsors[d.title_sponsor] = Array(46).fill(0);
+          const idx = d.Year - 1981;
+          if (idx >= 0 && idx < 46)
+            drillTobaccoSponsors[d.title_sponsor][idx]++;
+        });
+      const tobEntries = Object.entries(drillTobaccoSponsors).sort(
+        (a, b) =>
+          b[1].reduce((s, v) => s + v, 0) - a[1].reduce((s, v) => s + v, 0),
+      );
+      const otherTob = Array(46).fill(0);
+      tobEntries
+        .slice(9)
+        .forEach(([, vals]) => vals.forEach((v, i) => (otherTob[i] += v)));
+      drillTobaccoSponsors = {};
+      tobEntries.slice(0, 9).forEach(([n, v]) => (drillTobaccoSponsors[n] = v));
+      if (otherTob.some((v) => v > 0)) drillTobaccoSponsors["Other"] = otherTob;
+
+      // ── Build 4-digit data ────────────────────────────────────────────────────
+      drill4dData = {};
+      D4_CATS.forEach((c) => (drill4dData[c] = Array(46).fill(0)));
+      titleDedup.forEach((d) => {
+        const idx = d.Year - 1981;
+        if (idx < 0 || idx >= 46) return;
+        drill4dData[mapTo4d(d)][idx]++;
+      });
+
+      // ── Initialize §02 charts ─────────────────────────────────────────────────
+      // renderStreamgraph('stacked');  // 2-digit chart removed from layout
+      renderStreamgraph4d();
+      // renderTreemap();               // treemap removed from layout
+
+      // ── Geo historical chart ──────────────────────────────────────────────────
+      const GEO_REGIONS = [
+        "Western Europe",
+        "Asia Pacific",
+        "North America",
+        "Middle East",
+        "Other",
+      ];
+      const GEO_COLORS = {
+        "Western Europe": "#534AB7",
+        "Asia Pacific": "#1D9E75",
+        "North America": "#185FA5",
+        "Middle East": "#BA7517",
+        Other: "#888880",
+      };
+
+      const yearRegion = {};
+      YEARS.forEach((y) => {
+        yearRegion[y] = {};
+        GEO_REGIONS.forEach((r) => (yearRegion[y][r] = 0));
+      });
+      titleDedup.forEach((d) => {
+        if (!d.hq_region || d.hq_region === "N/A") return;
+        if (!yearRegion[d.Year]) return;
+        const r = GEO_REGIONS.includes(d.hq_region) ? d.hq_region : "Other";
+        yearRegion[d.Year][r]++;
+      });
+
+      const geoData = {};
+      GEO_REGIONS.forEach((r) => (geoData[r] = []));
+      YEARS.forEach((y) => {
+        const total = GEO_REGIONS.reduce((s, r) => s + yearRegion[y][r], 0);
+        GEO_REGIONS.forEach((r) => {
+          geoData[r].push(
+            total > 0 ? Math.round((yearRegion[y][r] / total) * 100) : 0,
+          );
+        });
+      });
+
+      new Chart(document.getElementById("geoHistoricalChart"), {
+        type: "line",
+        data: {
+          labels: YEARS,
+          datasets: GEO_REGIONS.map((r) => ({
+            label: r,
+            data: geoData[r],
+            backgroundColor: GEO_COLORS[r],
+            borderColor: GEO_COLORS[r],
+            fill: true,
+            pointRadius: 0,
+            tension: 0.3,
+            borderWidth: 1,
+          })),
+        },
+        options: {
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              mode: "index",
+              backgroundColor: "#1a1a1a",
+              callbacks: {
+                label: (ctx) => `${ctx.dataset.label}: ${ctx.parsed.y}%`,
+              },
+            },
+          },
+          scales: {
+            x: {
+              ticks: {
+                autoSkip: true,
+                maxTicksLimit: 10,
+                font: { family: "Inter", size: 11 },
+                color: "#4a4a4a",
+              },
+              grid: { display: false },
+              border: { color: "#d8d3c7" },
+            },
+            y: {
+              stacked: true,
+              max: 100,
+              beginAtZero: true,
+              ticks: {
+                font: { family: "Inter", size: 11 },
+                color: "#4a4a4a",
+                callback: (v) => v + "%",
+              },
+              grid: { color: "rgba(216, 211, 199, 0.5)" },
+              border: { display: false },
+            },
+          },
+        },
+      });
+
+      // ── 2020 vs 2026 comparison chart ─────────────────────────────────────────
+      const rows2020 = fullRaw.filter((d) => d.season === 2020);
+      const rows2026 = fullRaw.filter((d) => d.season === 2026);
+
+      const countBy4digit = (rows) => {
+        const m = {};
+        rows.forEach((d) => {
+          const k = d.naics_4digit_name || "Unknown";
+          m[k] = (m[k] || 0) + 1;
+        });
+        return m;
+      };
+      const c2020 = countBy4digit(rows2020);
+      const c2026 = countBy4digit(rows2026);
+
+      const allCats = new Set([...Object.keys(c2020), ...Object.keys(c2026)]);
+      const sortedCats = [...allCats]
+        .filter((k) => k !== "Unknown")
+        .sort((a, b) => (c2026[b] || 0) - (c2026[a] || 0))
+        .slice(0, 14);
+
+      new Chart(document.getElementById("compareChart"), {
+        type: "bar",
+        data: {
+          labels: sortedCats.map(shortLabel),
+          datasets: [
+            {
+              label: "2020",
+              data: sortedCats.map((k) => c2020[k] || 0),
+              backgroundColor: "#888880",
+              borderWidth: 0,
+            },
+            {
+              label: "2026",
+              data: sortedCats.map((k) => c2026[k] || 0),
+              backgroundColor: "#1a1a1a",
+              borderWidth: 0,
+            },
+          ],
+        },
+        options: {
+          indexAxis: "y",
+          responsive: true,
+          maintainAspectRatio: false,
+          plugins: {
+            legend: { display: false },
+            tooltip: {
+              backgroundColor: "#1a1a1a",
+              bodyFont: { family: "Inter", size: 12 },
+            },
+          },
+          scales: {
+            x: {
+              beginAtZero: true,
+              ticks: { font: { family: "Inter", size: 11 }, color: "#4a4a4a" },
+              grid: { color: "rgba(216, 211, 199, 0.5)" },
+              border: { display: false },
+              title: {
+                display: true,
+                text: "Sponsorships across all teams",
+                font: { family: "Inter", size: 11 },
+                color: "#8a8780",
+              },
+            },
+            y: {
+              ticks: { font: { family: "Inter", size: 12 }, color: "#1a1a1a" },
+              grid: { display: false },
+              border: { color: "#d8d3c7" },
+            },
+          },
+        },
+      });
+
+      // ── Animated world map (2020–2026) ────────────────────────────────────────
+      // Pre-build per-season country counts
+      const seasonCountsMap = {};
+      SEASONS.forEach((s) => {
+        seasonCountsMap[s] = {};
+        fullRaw
+          .filter((d) => d.season === s)
+          .forEach((d) => {
+            if (!d.hq_country || d.hq_country === "N/A") return;
+            seasonCountsMap[s][d.hq_country] =
+              (seasonCountsMap[s][d.hq_country] || 0) + 1;
+          });
+      });
+
+      // Power scale (sqrt) so low counts still show visible color; ceiling at 18
+      const mapGlobalMax = Math.max(
+        ...SEASONS.flatMap((s) => Object.values(seasonCountsMap[s])),
+        1,
+      );
+      const mapColorScale = d3
+        .scalePow()
+        .exponent(0.45)
+        .domain([0, Math.min(mapGlobalMax, 18)])
+        .range(["#e8e4d9", "#c8312c"])
+        .clamp(true);
+
+      // Helper: Taiwan (ISO 158) is colored as China
+      function mapFill(numericId, counts) {
+        const name = numericId === 158 ? "China" : ISO_TO_COUNTRY[numericId];
+        const v = name ? counts[name] : undefined;
+        return v ? mapColorScale(v) : "#e8e4d9";
+      }
+      function mapTitle(numericId, counts) {
+        const name =
+          numericId === 158 ? "China" : ISO_TO_COUNTRY[numericId] || "—";
+        const cnt = counts[name] || 0;
+        return `${name}: ${cnt} sponsorship${cnt !== 1 ? "s" : ""}`;
+      }
+
+      // Build color legend with numeric ticks (D3 SVG, accurate power-scale gradient)
+      (function () {
+        const domainMax = Math.min(mapGlobalMax, 18);
+        const el = document.getElementById("map-legend");
+        const barW = 200,
+          barH = 10,
+          barY = 4;
+        const svg = d3
+          .select(el)
+          .append("svg")
+          .attr("viewBox", `0 0 ${barW} 36`)
+          .style("width", barW + "px")
+          .style("height", "36px")
+          .style("display", "block");
+        const defs = svg.append("defs");
+        const grad = defs
+          .append("linearGradient")
+          .attr("id", "map-leg-grad")
+          .attr("x1", "0%")
+          .attr("x2", "100%");
+        for (let i = 0; i <= 30; i++) {
+          grad
+            .append("stop")
+            .attr("offset", ((i / 30) * 100).toFixed(1) + "%")
+            .attr("stop-color", mapColorScale((i / 30) * domainMax));
+        }
+        svg
+          .append("rect")
+          .attr("x", 0)
+          .attr("y", barY)
+          .attr("width", barW)
+          .attr("height", barH)
+          .attr("rx", 1)
+          .attr("fill", "url(#map-leg-grad)");
+        const ticks = [
+          0,
+          Math.round(domainMax / 4),
+          Math.round(domainMax / 2),
+          Math.round((domainMax * 3) / 4),
+          domainMax,
+        ];
+        [...new Set(ticks)].forEach((v, i, arr) => {
+          const x = (v / domainMax) * barW;
+          svg
+            .append("line")
+            .attr("x1", x)
+            .attr("x2", x)
+            .attr("y1", barY + barH)
+            .attr("y2", barY + barH + 4)
+            .attr("stroke", "#8a8780")
+            .attr("stroke-width", 1);
+          svg
+            .append("text")
+            .attr("x", x)
+            .attr("y", 34)
+            .attr(
+              "text-anchor",
+              i === 0 ? "start" : i === arr.length - 1 ? "end" : "middle",
+            )
+            .attr("font-family", "Inter,sans-serif")
+            .attr("font-size", "10px")
+            .attr("fill", "#8a8780")
+            .text(i === arr.length - 1 ? v + "+" : v);
+        });
+      })();
+
+      // Build year pills
+      const mapPillWrap = document.getElementById("map-year-pills");
+      SEASONS.forEach((s, i) => {
+        const pill = document.createElement("button");
+        pill.className = "map-year-pill" + (i === 0 ? " active" : "");
+        pill.textContent = s;
+        pill.dataset.idx = i;
+        mapPillWrap.appendChild(pill);
+      });
+
+      // Per-season total + US sponsor counts (for line charts)
+      const seasonTotals = SEASONS.map((s) => ({
+        season: s,
+        total: fullRaw.filter((d) => d.season === s).length,
+      }));
+      const seasonUSData = SEASONS.map((s) => ({
+        season: s,
+        total: fullRaw.filter((d) => d.season === s && d.hq_country === "USA")
+          .length,
+      }));
+      let updateLineChart = null;
+
+      let mapSeasonIdx = 0;
+      let mapPlaying = true;
+      let mapTimer = null;
+
+      const mapW = 900,
+        mapH = 480;
+      const mapSvg = d3
+        .select("#worldmap")
+        .append("svg")
+        .attr("viewBox", `0 0 ${mapW} ${mapH}`)
+        .attr("width", "100%")
+        .attr("height", "100%");
+      const mapProj = d3
+        .geoNaturalEarth1()
+        .scale(180)
+        .translate([mapW / 2, mapH / 2 + 20]);
+      const mapPathFn = d3.geoPath(mapProj);
+
+      function updateMapSeason(idx) {
+        mapSeasonIdx = idx;
+        const season = SEASONS[idx];
+        const counts = seasonCountsMap[season];
+        document.getElementById("map-year-label").textContent = season;
+        document
+          .querySelectorAll(".map-year-pill")
+          .forEach((p, i) => p.classList.toggle("active", i === idx));
+        mapSvg
+          .selectAll("path.country")
+          .transition()
+          .duration(650)
+          .ease(d3.easeCubicInOut)
+          .attr("fill", (d) => mapFill(+d.id, counts));
+        mapSvg
+          .selectAll("path.country")
+          .select("title")
+          .text((d) => mapTitle(+d.id, counts));
+        if (updateLineChart) updateLineChart(idx);
+      }
+
+      function startMapAnim() {
+        mapPlaying = true;
+        document.getElementById("map-play-btn").textContent = "⏸";
+        mapTimer = setInterval(
+          () => updateMapSeason((mapSeasonIdx + 1) % SEASONS.length),
+          1800,
+        );
+      }
+
+      function stopMapAnim() {
+        mapPlaying = false;
+        document.getElementById("map-play-btn").textContent = "▶";
+        if (mapTimer) {
+          clearInterval(mapTimer);
+          mapTimer = null;
+        }
+      }
+
+      document.getElementById("map-play-btn").addEventListener("click", () => {
+        if (mapPlaying) stopMapAnim();
+        else startMapAnim();
+      });
+      mapPillWrap.addEventListener("click", (e) => {
+        const pill = e.target.closest(".map-year-pill");
+        if (!pill) return;
+        stopMapAnim();
+        updateMapSeason(+pill.dataset.idx);
+      });
+
+      // Builds a combined line chart with two series (total + US) on the same axes
+      function buildCombinedLineChart(containerId, totalData, usData) {
+        const el = document.getElementById(containerId);
+        if (!el) return () => {};
+        const M = { top: 28, right: 24, bottom: 28, left: 44 };
+        const cW = el.clientWidth || 860;
+        const cH = 170;
+        const iw = cW - M.left - M.right;
+        const ih = cH - M.top - M.bottom;
+
+        const svg = d3
+          .select(el)
+          .append("svg")
+          .attr("viewBox", `0 0 ${cW} ${cH}`)
+          .style("width", "100%")
+          .style("height", cH + "px")
+          .style("display", "block");
+        const g = svg
+          .append("g")
+          .attr("transform", `translate(${M.left},${M.top})`);
+
+        const xsc = d3.scalePoint().domain(SEASONS).range([0, iw]).padding(0.1);
+        const maxV = Math.max(
+          d3.max(totalData, (d) => d.total),
+          d3.max(usData, (d) => d.total),
+        );
+        const ysc = d3
+          .scaleLinear()
+          .domain([0, Math.ceil((maxV * 1.2) / 5) * 5])
+          .range([ih, 0]);
+
+        // Grid
+        g.selectAll(".lc-grid")
+          .data(ysc.ticks(4))
+          .join("line")
+          .attr("class", "lc-grid")
+          .attr("x1", 0)
+          .attr("x2", iw)
+          .attr("y1", (d) => ysc(d))
+          .attr("y2", (d) => ysc(d))
+          .attr("stroke", "#e0dbd1")
+          .attr("stroke-width", 1);
+
+        // y-axis
+        g.append("g")
+          .call(
+            d3.axisLeft(ysc).ticks(4).tickSize(0).tickFormat(d3.format("d")),
+          )
+          .call((ax) => {
+            ax.select(".domain").remove();
+            ax.selectAll("text")
+              .attr("font-family", "Inter,sans-serif")
+              .attr("font-size", "10px")
+              .attr("fill", "#8a8780")
+              .attr("dx", "-4");
+          });
+
+        // x-axis
+        g.append("g")
+          .attr("transform", `translate(0,${ih})`)
+          .call(d3.axisBottom(xsc).tickFormat(d3.format("d")))
+          .call((ax) => {
+            ax.select(".domain").attr("stroke", "#d8d3c7");
+            ax.selectAll(".tick line").remove();
+            ax.selectAll("text")
+              .attr("font-family", "Inter,sans-serif")
+              .attr("font-size", "10px")
+              .attr("fill", "#4a4a4a");
+          });
+
+        // Draw one series: area fill + animated line + dots
+        function drawSeries(data, strokeColor, fillColor, dotClass) {
+          g.append("path")
+            .datum(data)
+            .attr("fill", fillColor)
+            .attr(
+              "d",
+              d3
+                .area()
+                .x((d) => xsc(d.season))
+                .y0(ih)
+                .y1((d) => ysc(d.total))
+                .curve(d3.curveMonotoneX),
+            );
+          const lp = g
+            .append("path")
+            .datum(data)
+            .attr("fill", "none")
+            .attr("stroke", strokeColor)
+            .attr("stroke-width", 2)
+            .attr(
+              "d",
+              d3
+                .line()
+                .x((d) => xsc(d.season))
+                .y((d) => ysc(d.total))
+                .curve(d3.curveMonotoneX),
+            );
+          const len = lp.node().getTotalLength();
+          lp.attr("stroke-dasharray", len)
+            .attr("stroke-dashoffset", len)
+            .transition()
+            .duration(1600)
+            .ease(d3.easeLinear)
+            .attr("stroke-dashoffset", 0);
+          g.selectAll("." + dotClass)
+            .data(data)
+            .join("circle")
+            .attr("class", dotClass)
+            .attr("cx", (d) => xsc(d.season))
+            .attr("cy", (d) => ysc(d.total))
+            .attr("r", 3)
+            .attr("fill", strokeColor)
+            .attr("opacity", 0)
+            .transition()
+            .delay(1600)
+            .attr("opacity", 1);
+        }
+
+        drawSeries(
+          totalData,
+          "#c8312c",
+          "rgba(200,49,44,0.08)",
+          "lc-dot-total",
+        );
+        drawSeries(usData, "#2d4a8a", "rgba(45,74,138,0.08)", "lc-dot-us");
+
+        // Inline legend (top-right corner)
+        [
+          ["#c8312c", "All sponsors"],
+          ["#2d4a8a", "US sponsors"],
+        ].forEach(([col, label], i) => {
+          const ly = i * 14;
+          const lx = iw - 2;
+          g.append("line")
+            .attr("x1", lx - 16)
+            .attr("x2", lx - 4)
+            .attr("y1", ly + 1)
+            .attr("y2", ly + 1)
+            .attr("stroke", col)
+            .attr("stroke-width", 2);
+          g.append("text")
+            .attr("x", lx - 20)
+            .attr("y", ly + 5)
+            .attr("text-anchor", "end")
+            .attr("font-family", "Inter,sans-serif")
+            .attr("font-size", "10px")
+            .attr("fill", col)
+            .text(label);
+        });
+
+        // Shared season indicator (vertical dashed line)
+        const ind = g
+          .append("line")
+          .attr("x1", xsc(SEASONS[0]))
+          .attr("x2", xsc(SEASONS[0]))
+          .attr("y1", 0)
+          .attr("y2", ih)
+          .attr("stroke", "#555")
+          .attr("stroke-dasharray", "3,2")
+          .attr("stroke-width", 1)
+          .attr("opacity", 0.6);
+
+        // Total indicator dot + label (red)
+        const dotTotal = g
+          .append("circle")
+          .attr("cx", xsc(SEASONS[0]))
+          .attr("cy", ysc(totalData[0].total))
+          .attr("r", 5)
+          .attr("fill", "#c8312c");
+        const lblTotal = g
+          .append("text")
+          .attr("x", xsc(SEASONS[0]) + 7)
+          .attr("y", ysc(totalData[0].total) - 5)
+          .attr("font-family", "Inter,sans-serif")
+          .attr("font-size", "10px")
+          .attr("fill", "#c8312c")
+          .attr("text-anchor", "start")
+          .text(totalData[0].total + " total");
+
+        // US indicator dot + label (blue)
+        const dotUS = g
+          .append("circle")
+          .attr("cx", xsc(SEASONS[0]))
+          .attr("cy", ysc(usData[0].total))
+          .attr("r", 5)
+          .attr("fill", "#2d4a8a");
+        const lblUS = g
+          .append("text")
+          .attr("x", xsc(SEASONS[0]) + 7)
+          .attr("y", ysc(usData[0].total) + 14)
+          .attr("font-family", "Inter,sans-serif")
+          .attr("font-size", "10px")
+          .attr("fill", "#2d4a8a")
+          .attr("text-anchor", "start")
+          .text(usData[0].total + " US");
+
+        return function update(idx) {
+          const dt = totalData[idx];
+          const du = usData[idx];
+          const xp = xsc(dt.season);
+          const flip = xp > iw * 0.75;
+          const lx = flip ? xp - 7 : xp + 7;
+          const anch = flip ? "end" : "start";
+
+          ind.transition().duration(500).attr("x1", xp).attr("x2", xp);
+          dotTotal
+            .transition()
+            .duration(500)
+            .attr("cx", xp)
+            .attr("cy", ysc(dt.total));
+          lblTotal
+            .transition()
+            .duration(500)
+            .attr("x", lx)
+            .attr("y", ysc(dt.total) - 5)
+            .attr("text-anchor", anch)
+            .text(dt.total + " total");
+          dotUS
+            .transition()
+            .duration(500)
+            .attr("cx", xp)
+            .attr("cy", ysc(du.total));
+          lblUS
+            .transition()
+            .duration(500)
+            .attr("x", lx)
+            .attr("y", ysc(du.total) + 14)
+            .attr("text-anchor", anch)
+            .text(du.total + " US");
+        };
+      }
+
+      d3.json("https://cdn.jsdelivr.net/npm/world-atlas@2/countries-110m.json")
+        .then((world) => {
+          const countries = topojson.feature(
+            world,
+            world.objects.countries,
+          ).features;
+          const init = seasonCountsMap[SEASONS[0]];
+          mapSvg
+            .selectAll("path.country")
+            .data(countries)
+            .join("path")
+            .attr("class", "country")
+            .attr("d", mapPathFn)
+            .attr("fill", (d) => mapFill(+d.id, init))
+            .attr("stroke", "#d8d3c7")
+            .attr("stroke-width", 0.5)
+            .append("title")
+            .text((d) => mapTitle(+d.id, init));
+
+          // ── Sponsor count line chart (combined: total + US) ─────────────────────
+          updateLineChart = buildCombinedLineChart(
+            "map-linechart",
+            seasonTotals,
+            seasonUSData,
+          );
+
+          startMapAnim();
+        })
+        .catch(() => {
+          document.getElementById("worldmap").innerHTML =
+            '<div style="padding:40px;text-align:center;color:var(--ink-faint);font-family:var(--sans);font-size:13px;">World map requires an internet connection to load the country boundaries.</div>';
+        });
+
+      // ── Crypto timeline — section removed from layout ─────────────────────────
+    </script>
+  </body>
+</html>
